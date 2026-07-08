@@ -1,0 +1,297 @@
+{
+  "name": "JobFit AI",
+  "nodes": [
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an ATS (Applicant Tracking System) Compatibility Scorer.\n\nYou will be given a tailored resume and the job description it was tailored for. Score how well this resume would perform against a typical ATS and against a human recruiter scanning it quickly.\n\nScoring criteria:\n1. Keyword match — how many of the job's required_skills and nice_to_have_skills appear in the resume's prioritized_skills and experience bullets.\n2. Skill coverage — what percentage of required skills are present anywhere in the resume.\n3. Relevance of experience — whether the top experience entries align with the role's seniority and domain.\n4. Clarity and formatting signals — resumes with clear structure score higher (assume structure is fine since this is JSON, focus on content).\n\nReturn ONLY valid JSON in this exact structure, no markdown, no commentary:\n\n{\n  \"ats_score\": 0-100 integer,\n  \"keyword_match_percentage\": 0-100 integer,\n  \"matched_required_skills\": [\"array of required skills found in the resume\"],\n  \"missing_required_skills\": [\"array of required skills NOT found anywhere in the resume\"],\n  \"strengths\": [\"array of 2-4 short strings on why this resume matches well\"],\n  \"improvement_suggestions\": [\"array of 2-4 short, truthful suggestions — never suggest fabricating anything\"]\n}\n\nJob Description:\nRequired Skills: {{ $json.jd.required_skills }}\nNice to Have Skills: {{ $json.jd.nice_to_have_skills }}\n\nTailored Resume:\nSummary: {{ $json.tailored_resume.tailored_summary }}\nPrioritized Skills: {{ $json.tailored_resume.prioritized_skills }}\nExperience: {{ JSON.stringify($json.tailored_resume.experience) }}\nProjects: {{ JSON.stringify($json.tailored_resume.projects) }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        160
+      ],
+      "id": "3180f1e6-b7d9-4ccf-8ce1-ab48e39f51c3",
+      "name": "Message a model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5KK0zdSwitpCJ1wF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const geminiOutput = $input.first().json;\nconst raw = geminiOutput.content.parts[0].text;\n\nlet tailoredResume;\ntry {\n  tailoredResume = JSON.parse(raw);\n} catch (e) {\n  tailoredResume = { error: \"parse_failed\", raw_text: raw };\n}\n\nconst originalData = $('Code in JavaScript1').first().json;\nconst jd = originalData.jd;\n\nreturn [{\n  json: {\n    jd: jd,\n    tailored_resume: tailoredResume\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        160
+      ],
+      "id": "17983af6-9fca-45f7-ab66-a43ac05268c3",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an ATS Resume Optimizer.\n\nYou will be given a candidate's master resume (truthful, complete, ground-truth data) and a target job description. Your task is to produce a tailored version of the resume that maximizes relevance to the job description, following these strict rules:\n\n1. Never invent experience, skills, projects, or achievements that are not in the master resume.\n2. Never add fake skills not present in the master resume's skills object.\n3. Never change years of experience, company names, dates, or job titles.\n4. Never modify the wording of achievement bullets — only select and reorder which ones to include.\n5. Reorder and prioritize skills based on relevance to the job description's required_skills and nice_to_have_skills.\n6. Move skills not relevant to this job description into an \"additional_skills\" array rather than omitting them entirely.\n7. Reorder experience entries and projects to put the most relevant ones first, but include all of them — never drop an entire job or project.\n8. Within each experience entry, you may reorder bullets to put the most relevant ones first, and you may select a subset of bullets if the original has many, but never alter their wording.\n9. Write a new \"tailored_summary\" (2-4 sentences) that emphasizes the candidate's most relevant experience for this specific role, using only facts present in the master resume — do not fabricate anything.\n10. Return ONLY valid JSON in the exact structure shown below, no markdown formatting, no code fences, no extra commentary.\n\nOutput JSON structure:\n{\n  \"tailored_summary\": \"string\",\n  \"prioritized_skills\": [\"array of skill strings, most relevant first\"],\n  \"additional_skills\": [\"array of less relevant skill strings\"],\n  \"experience\": [\n    {\n      \"company\": \"string\",\n      \"role\": \"string\",\n      \"duration\": \"string\",\n      \"bullets\": [\"array of strings, most relevant first, exact wording from master resume\"]\n    }\n  ],\n  \"projects\": [\n    {\n      \"title\": \"string\",\n      \"tech\": [\"array of strings\"],\n      \"bullets\": [\"array of strings, exact wording from master resume\"]\n    }\n  ],\n  \"education\": [\n    { \"degree\": \"string\", \"institution\": \"string\", \"year\": \"string\" }\n  ],\n  \"match_notes\": \"brief internal note on why this tailoring was chosen, for debugging purposes only\"\n}\n\nJob Description:\nRole: {{ $json.jd.role_title }}\nCompany: {{ $json.jd.company }}\nRequired Skills: {{ $json.jd.required_skills }}\nNice to Have Skills: {{ $json.jd.nice_to_have_skills }}\nFull Description: {{ $json.jd.jd_text_clean }}\n\nMaster Resume (ground truth, do not deviate from facts):\n{{ JSON.stringify($json.resume) }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        1184,
+        160
+      ],
+      "id": "7fdb9324-383c-45ea-8a4d-26f89ec37768",
+      "name": "Message a model1",
+      "retryOnFail": false,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5KK0zdSwitpCJ1wF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\n// JD data from previous node\nconst jdData = {\n  company: item.company,\n  role_title: item.role_title,\n  jd_text_clean: item.jd_text_clean,\n  required_skills: item.required_skills,\n  nice_to_have_skills: item.nice_to_have_skills\n};\n\n// Master resume hardcoded directly — update this when your resume changes\nconst masterResume = {\n  \"name\": \"Hithesh M N\",\n  \"title\": \"Senior Frontend Developer | Angular Specialist | Full Stack Developer\",\n  \"contact\": {\n    \"phone\": \"+91-8951137328\",\n    \"email\": \"m.n.hithesh26@gmail.com\",\n    \"linkedin\": \"linkedin.com/in/hithesh-m-n-ab53a4158\",\n    \"location\": \"Bengaluru, Karnataka\"\n  },\n  \"summary\": \"Angular specialist with 8+ years of experience building complex real-time trading platforms — from WebSocket data pipelines and TradingView integrations to copy trading engines and cross-platform mobile apps. Started as a UI developer across logistics and AI/ML platforms, now architecting full-scale trading systems, leading product delivery, and owning backend features end to end. Currently building and maintaining a live crypto trading platform used by Australian users — delivering across Angular, Node.js, MongoDB, and AWS. Full-stack capable and comfortable owning features from UI to backend to deployment.\",\n  \"skills\": {\n    \"frontend\": [\"Angular (v6–16)\", \"React\", \"TypeScript\", \"JavaScript (ES6+)\", \"HTML5\", \"CSS3\", \"SCSS\", \"RxJS\", \"Angular Material\", \"Bootstrap\", \"HTML5 Canvas\"],\n    \"charting_visualisation\": [\"TradingView Charting Library\", \"Highcharts\", \"Plotly.js\"],\n    \"mobile\": [\"Ionic Framework\", \"React Native (learning)\"],\n    \"backend\": [\"Node.js\", \"Express.js\", \"REST APIs\", \"MongoDB\", \"WebSockets\", \"RabbitMQ (learning)\"],\n    \"devops_cloud\": [\"Docker\", \"AWS (EC2, S3, Amplify)\", \"Git\"],\n    \"tools\": [\"Figma\", \"Adobe XD\", \"n8n Automation\", \"Prompt Engineering\", \"Jenkins\", \"Puppeteer\", \"Webpack Module Federation\"]\n  },\n  \"experience\": [\n    {\n      \"company\": \"Delivery Centric Pvt Ltd\",\n      \"role\": \"Senior Frontend Developer & Tech Lead\",\n      \"project\": \"Coin Centric / Crypto Centric — Crypto Trading Platform\",\n      \"duration\": \"December 2021 – Present\",\n      \"bullets\": [\n        \"Independently planned and executed a phased Angular 6 to 12 migration across 20+ modules and screens.\",\n        \"Architected and built a second Angular 14 application from scratch — defining application structure, shared service layer, reusable component framework, and responsive UI.\",\n        \"Implemented the platform's real-time charting infrastructure by integrating TradingView Charting Library — building WebSocket-driven market data pipelines for cryptocurrency trading.\",\n        \"Built a custom HTML5 Canvas crypto bubble visualisation from scratch — implementing RxJS-driven real-time market data updates and dynamic bubble sizing algorithms.\",\n        \"Owned the Copy Trading module end to end — designing shared service architecture, reactive data flows, trade configuration management, and business-rule validations.\",\n        \"Designed and implemented a full-stack crypto alerting system with backend processing logic to evaluate trigger conditions and dispatch automated email and SMS notifications.\",\n        \"Built backend services for limit-order processing using Puppeteer to retrieve live NSE pricing.\",\n        \"Re-engineered the futures trading execution engine following major IIFL API changes.\",\n        \"Independently architecting a cross-platform Ionic trading application.\",\n        \"Mentored junior developers through code reviews and architecture discussions.\"\n      ],\n      \"tech\": [\"Angular 12/14\", \"TypeScript\", \"RxJS\", \"Angular Material\", \"Node.js\", \"MongoDB\", \"WebSockets\", \"TradingView\", \"Highcharts\", \"HTML5 Canvas\", \"Puppeteer\", \"Ionic\", \"AWS\"]\n    },\n    {\n      \"company\": \"Delivery Centric Pvt Ltd\",\n      \"role\": \"Senior Frontend Developer & Tech Lead\",\n      \"project\": \"DCPS — CRM Platform & Math Initiative — E-Learning Platform\",\n      \"duration\": \"October 2022 – June 2024\",\n      \"bullets\": [\n        \"Architected and delivered DCPS — an internal CRM and workforce management platform for HR, recruitment, and sales teams — and Math Initiative, an EdTech platform; both built from scratch.\",\n        \"Designed Angular 14 frontend architecture for both platforms — defining modular folder structure, shared service layers, reusable component frameworks, and development standards.\",\n        \"Implemented role-based access control (RBAC) and permission-driven workflows in DCPS.\",\n        \"Built RxJS-based state management to track complex application state across both platforms.\",\n        \"Applied frontend caching and data optimisation strategies to improve rendering performance.\",\n        \"Built reusable Angular component libraries and shared modules used across both platforms.\"\n      ],\n      \"tech\": [\"Angular 14\", \"TypeScript\", \"RxJS\", \"Angular Material\", \"Node.js\", \"Express.js\", \"MongoDB\", \"REST APIs\", \"SCSS\"]\n    },\n    {\n      \"company\": \"Qualitas Technologies Pvt Ltd\",\n      \"role\": \"Junior Software Developer\",\n      \"project\": \"Eagle Eye Cloud — AI/ML & Computer Vision Platform\",\n      \"duration\": \"July 2020 – December 2021\",\n      \"bullets\": [\n        \"Built complex UI components using HTML5 Canvas to render spatial data and coordinate-based visualisations for computer vision model outputs.\",\n        \"Developed responsive, reusable Angular components for an enterprise AI and computer vision platform.\",\n        \"Built interactive analytics dashboards using Plotly.js for model performance monitoring.\",\n        \"Contributed to UX design, wireframing, and prototyping using Adobe XD.\"\n      ],\n      \"tech\": [\"Angular 11\", \"TypeScript\", \"SCSS\", \"RxJS\", \"HTML5 Canvas\", \"Plotly.js\", \"REST APIs\", \"Adobe XD\"]\n    },\n    {\n      \"company\": \"Elephantree Technologies Pvt Ltd\",\n      \"role\": \"Software Developer\",\n      \"project\": \"Move My Goods — Logistics Platform\",\n      \"duration\": \"July 2018 – December 2019\",\n      \"bullets\": [\n        \"Developed customer-facing modules for a live logistics platform using AngularJS, HTML5, CSS3, and Bootstrap.\"\n      ],\n      \"tech\": [\"AngularJS\", \"HTML5\", \"CSS3\", \"Bootstrap\"]\n    },\n    {\n      \"company\": \"Nokia Networks and Solutions\",\n      \"role\": \"Intern\",\n      \"project\": \"CERT Automation Tool\",\n      \"duration\": \"January 2018 – June 2018\",\n      \"bullets\": [\n        \"Built a CERT vulnerability automation tool using Docker and Jenkins that automated security vulnerability reporting.\"\n      ],\n      \"tech\": [\"Docker\", \"Jenkins\"]\n    }\n  ],\n  \"projects\": [\n    {\n      \"title\": \"Personal Portfolio — Micro Frontend Architecture\",\n      \"tech\": [\"Angular\", \"React\", \"Webpack Module Federation\", \"Lenis\"],\n      \"bullets\": [\n        \"Built a personal portfolio using micro frontend architecture — Angular as shell with React as remote module using Webpack Module Federation.\",\n        \"Implemented smooth scroll interactions and motion design using Lenis.\"\n      ]\n    },\n    {\n      \"title\": \"DuoBudget — AI-Powered Couples Budget Tracker\",\n      \"tech\": [\"React\", \"Node.js\", \"OpenAI API\"],\n      \"bullets\": [\n        \"Designed and built a budget management application for couples to track shared expenses and manage financial goals.\",\n        \"Integrated an AI financial assistant powered by OpenAI to analyse spending patterns and provide personalised budget suggestions.\"\n      ]\n    },\n    {\n      \"title\": \"Interactive 3D Business Website (In Development)\",\n      \"tech\": [\"Angular\", \"Lenis\"],\n      \"bullets\": [\n        \"Building a highly interactive website with immersive scroll-driven animations and motion design.\"\n      ]\n    }\n  ],\n  \"education\": [\n    {\n      \"degree\": \"MCA\",\n      \"institution\": \"Sri Jayachamarajendra College of Engineering, Bengaluru\",\n      \"year\": \"2018\",\n      \"score\": \"68.8%\"\n    }\n  ]\n};\n\nreturn [{\n  json: {\n    jd: jdData,\n    resume: masterResume\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        160
+      ],
+      "id": "75f3191e-4824-4ff5-bcc4-d2b2a422a52a",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nlet raw;\nif (item?.content?.parts?.[0]?.text) {\n  raw = item.content.parts[0].text;\n} else if (item?.parts?.[0]?.text) {\n  raw = item.parts[0].text;\n} else if (typeof item === \"string\") {\n  raw = item;\n} else {\n  return [{ json: { error: \"structure_not_found\", debug: item } }];\n}\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  parsed = { error: \"parse_failed\", raw_text: raw };\n}\n\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        160
+      ],
+      "id": "6d43473b-c90a-43bb-a30d-f618c88edf94",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a Job Description Extractor.\n\nGiven the raw email body below, extract only the job-description-related content and return strict JSON with this exact shape:\n\n{\n  \"company\": \"string or null if not mentioned\",\n  \"role_title\": \"string\",\n  \"jd_text_clean\": \"the full job description text, cleaned of greetings/signatures/disclaimers\",\n  \"required_skills\": [\"array of strings\"],\n  \"nice_to_have_skills\": [\"array of strings\"]\n}\n\nRules:\n- Ignore greetings, sender signatures, recruiter pleasantries, and legal disclaimers.\n- If the email does not contain a job description at all, return {\"error\": \"no_jd_found\"}.\n- Return ONLY valid JSON, no markdown formatting, no code fences, no extra commentary.\n\nEmail body:\n{{ $json.textPlain }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        496,
+        160
+      ],
+      "id": "dd6f61b4-799e-49b4-aeb2-26039a88141d",
+      "name": "Message a model",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "5KK0zdSwitpCJ1wF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [
+        352,
+        160
+      ],
+      "id": "aa21c141-776c-4b7c-a5f4-e6758f00ff27",
+      "name": "Email Trigger (IMAP)",
+      "credentials": {
+        "imap": {
+          "id": "DtzlASs75lSCCW8n",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/1524359274556559401/YOnpZoUIbS03AX0VDGOZkl9j9UkKqGp40uIpqxrgJueR950jegtJc9x3ys6LyWjIxRye",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"username\": \"JobFit AI\",\n  \"embeds\": [{\n    \"title\": \"✅ Tailored Resume Ready\",\n    \"color\": 5763719,\n    \"fields\": [\n      {\n        \"name\": \"🎯 Role\",\n        \"value\": \"={{ $('Code in JavaScript2').first().json.jd.role_title }}\",\n        \"inline\": true\n      },\n      {\n        \"name\": \"🏢 Company\",\n        \"value\": \"={{ $('Code in JavaScript2').first().json.jd.company || 'Not mentioned' }}\",\n        \"inline\": true\n      },\n      {\n        \"name\": \"📊 ATS Score\",\n        \"value\": \"={{ $json.content.parts[0].text ? JSON.parse($json.content.parts[0].text).ats_score + '/100' : 'N/A' }}\",\n        \"inline\": true\n      },\n      {\n        \"name\": \"✅ Matched Skills\",\n        \"value\": \"={{ $json.content.parts[0].text ? JSON.parse($json.content.parts[0].text).matched_required_skills.join(', ') : 'N/A' }}\",\n        \"inline\": false\n      },\n      {\n        \"name\": \"⚠️ Missing Skills\",\n        \"value\": \"={{ $json.content.parts[0].text ? JSON.parse($json.content.parts[0].text).missing_required_skills.join(', ') : 'None' }}\",\n        \"inline\": false\n      },\n      {\n        \"name\": \"💡 Suggestions\",\n        \"value\": \"={{ $json.content.parts[0].text ? JSON.parse($json.content.parts[0].text).improvement_suggestions.join('\\\\n') : 'N/A' }}\",\n        \"inline\": false\n      }\n    ],\n    \"footer\": {\n      \"text\": \"JobFit AI • Resume tailored and ready to send\"\n    }\n  }]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2096,
+        160
+      ],
+      "id": "62092f08-fc86-448a-845f-06b03c05d6fb",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.content.parts[0].text;\nconst ats = JSON.parse(raw);\nconst jd = $('Code in JavaScript2').first().json.jd;\n\nreturn [{\n  json: {\n    role_title: jd.role_title,\n    company: jd.company || 'Not mentioned',\n    ats_score: ats.ats_score,\n    keyword_match: ats.keyword_match_percentage,\n    matched_skills: ats.matched_required_skills.join(', '),\n    missing_skills: ats.missing_required_skills.join(', ') || 'None',\n    suggestions: ats.improvement_suggestions.join('\\n')\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        160
+      ],
+      "id": "4ac69e23-9c4e-40c4-bcae-ca668e4d9122",
+      "name": "Code in JavaScript3"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Message a model2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5480293e-04a4-4701-a084-8bef6bd91723",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d1886f9f1f1327a5a4f6a95cb59c95f802ee878507e8ca4a407c322c19159e20"
+  },
+  "id": "eMymoPpunH6bYy0t",
+  "tags": []
+}
